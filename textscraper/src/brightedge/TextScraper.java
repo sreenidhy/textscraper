@@ -1,30 +1,26 @@
 package brightedge;
 
 import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.nodes.Node;
 import org.jsoup.select.Elements;
 
 
 public class TextScraper {
 	
-	private static final boolean DEBUG = true;
+	private static final boolean DEBUG = false;
 	
 	private static final String HOST = "http://www.walmart.com/";
 	private static final String LINK = "search/search-ng.do?";
 	private static final String SQ = "search_query";
 	private static final String IC = "ic";
-	private static final String FILENAME = "/tmp/temp.html";
+	private static final String FILENAME_RESPONSE = "./response.html";
+	private static final String FILENAME_ITEMS = "./items.html";
 	private static final String NO_SHIPPING_INFO = "No Shipping Information";
 	private static final int FACTOR = 16;
 	
@@ -79,7 +75,8 @@ public class TextScraper {
 	public void start()
 			throws UnknownHostException, IOException {
 		
-		/* sample queries and conclusion
+		/* 
+		 * sample queries and conclusion
 		 * query string has lot of additional information
 		 * http://www.walmart.com/search/search-ng.do?ic=16_0&Find=Find&search_query=digital+camera&Find=Find&search_constraint=0
 		 * http://www.walmart.com/search/search-ng.do?tab_value=all&search_query=digital+camera&search_constraint=0&Find=Find&pref_store=3775&ss=false&ic=16_32&_mm=
@@ -115,38 +112,40 @@ public class TextScraper {
 			Document doc = conn.get();
 
 			if (DEBUG) {
-				//System.out.println("document = " + doc);
-				printToFile(doc, FILENAME);
+				printToFile(doc, FILENAME_RESPONSE);
 			}
 			
 			/*
-			totalResult = doc.select(".numTotalResults").text();
-			if (pageNumber.length() == 0) {
-				totalResult = totalResult.substring(totalResult.indexOf("of") + 3);
-			} // end of if
-			
-			Elements resultContainer = doc.select("div[class^=gridItemBtm]");
+			 * Number of results is of the form
+			 * 1234 Results
+			 * Extract just the numerical part from this
+			 */
+			totalResult = doc.select(".numResults").text().split(" ")[0];
+			if (DEBUG) {
+				System.out.println("totalResult = " + totalResult);
+			}
+
+			Elements resultContainer = doc.select("div[class=prodInfo]");
 			if (DEBUG)
-				printToFile(resultContainer, FILENAME);
+				printToFile(resultContainer, FILENAME_ITEMS);
 			
 			Iterator<Element> it = resultContainer.iterator();
-			Element gridItem;
+			Element prodInfo;
 			
 			while (it.hasNext()) {
 					
 				// get the details of each product
 				Item item = new Item();
-				gridItem = it.next();
-				
-				// populate the product bean object with the extracted data
-				populateItem(item, gridItem);
+				prodInfo = it.next();
+
+				// populate the product bean(item) object with the extracted data
+				populateItem(item, prodInfo);
 				
 				// add the product to the result
 				result.addItem(item);
-				//itemList.add(item);
 				
 			} // end of while
-            */
+            
 		} catch (UnknownHostException uhe) {
 			System.out.println("Unable to reach the host " + HOST);
 			if (DEBUG)
@@ -160,73 +159,45 @@ public class TextScraper {
 		} 
 	} // start
 	
-	private void populateItem(Item it, Element gridItem) {
+	private void populateItem(Item it, Element prodInfo) {
 		
-		Element moreInfo;
-		Elements link, nameSpan, priceSpan, shipping, vendorElem;			
-		List<String> vendorList = new ArrayList<String>();
-		int cnt = 0;
-		String href = "";
-		String vendor = "";
+		Elements gridItemLink, bigPriceText, smallPriceText;
+		String itemName, itemPrice;
 		
-		if (gridItem != null || 
-				gridItem.text() != "" ||
-				gridItem.text().length() != 0) {
-	
-			cnt++;
-			vendorList.clear();
-			
-			//	get the product info from the DOM
-			link = gridItem.getElementsByAttributeValueStarting("class", "productName");
-			nameSpan = gridItem.getElementsByAttributeValueStarting("id", "nameQA");
-			priceSpan = gridItem.getElementsByAttributeValueStarting("class", "productPrice");
-			shipping = gridItem.getElementsByAttributeValueStarting("class", "taxShippingArea");					
-			if (shipping.text() == "" || shipping.text().length() == 0) {
-				shipping = gridItem.getElementsByAttributeValueStarting("class", "freeShip");
+		if (null != prodInfo) {
+			/*
+			 * prodInfo has gridItem and listItem elements for the same product.
+			 * using gridItem to get the required info
+			 */
+			gridItemLink = prodInfo.getElementsByAttributeValue("class", "prodLink GridItemLink");		
+			bigPriceText = prodInfo.getElementsByAttributeValue("class", "bigPriceText2");
+			if (bigPriceText.text() == "" || bigPriceText.text().length() == 0) {
+				bigPriceText = prodInfo.getElementsByAttributeValue("class", "bigPriceTextOutStock2");
 			}
-			
-			href = link.attr("href").toString();
-			if (!href.startsWith("javascript")) {				
-				//	valid href
-				vendorElem = gridItem.getElementsByAttributeValueStarting("class", "buyAtTxt");
-				vendor = vendorElem.text();
-				
-				/*
-				// this is not part of the assignment though. Option for enhancement
-				// we navigate to next page to get the vendor list
-				Document storeDoc = Jsoup.connect(HOST + href.substring(1)).post();
-				if (DEBUG)
-					printToFile(storeDoc, FILENAME2);
-				*/
-			} else {
-				// if no href and we have javascript, then we can get vendor detail
-				// in the same page
-				moreInfo = gridItem.nextElementSibling();
-				vendorElem = moreInfo.getElementsByAttributeValueStarting("id", "DCTmerchLogo");
-				vendor = vendorElem.attr("title");						
+		
+			smallPriceText = prodInfo.getElementsByAttributeValue("class", "smallPriceText2");	
+			if (smallPriceText.text() == "" || smallPriceText.text().length() == 0) {
+				smallPriceText = prodInfo.getElementsByAttributeValue("class", "smallPriceTextOutStock2");
 			}
-			vendorList.add(vendor);
-			
-			// update the product and product list with above info
-			//if (link != null) { 
-				//p.setName(link.attr("title"));
-			if (nameSpan != null) {
-				it.setName(nameSpan.text());
+		
+			// we always have 1 product information in this function, can safely use get(0)
+			// get the title from the href element
+			//itemName = gridItemLink.get(0).text();
+			itemName = gridItemLink.get(0).attr("title");
+			itemPrice = bigPriceText.text() + smallPriceText.text();
+			if (DEBUG) {
+				System.out.println("itemName = " + itemName);
+				System.out.println("itemPrice = " + itemPrice);
 			}
-			if (priceSpan != null) {
-				it.setPrice(priceSpan.text());
+		
+			// update the item with above info
+			if (null != itemName  && itemName.length() != 0) {
+				it.setName(itemName);
 			}
-			if (shipping != null) {
-				if (shipping.text() == "" || shipping.text().length() == 0) {
-					it.setShippingPrice(NO_SHIPPING_INFO);						
-				} else {
-					it.setShippingPrice(shipping.text());
-				}
+			if (null != itemPrice && itemPrice.length() != 0) {
+				it.setPrice(itemPrice);
 			}
-			if (vendor.length() != 0 || !vendor.isEmpty()) {
-				it.setVendors(vendorList);
-			}						
-		} // end of if		
+		}
 	} // populateProduct
 	
 	// for debugging purpose only

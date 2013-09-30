@@ -17,7 +17,7 @@ public class Request {
 		
 		TextScraper scraper = new TextScraper();
 		Result res = new Result();
-		boolean query1 = false, query2 = false;
+		boolean query2 = false;
 		String searchString = "";
 		String pageNumber = "1"; //default page number is 1
 		
@@ -32,23 +32,26 @@ public class Request {
 			// set query 2 to be true
 			query2 = true;			
 			
-		} else if  (args.length == 1) {
-			// set query 1 to be true
-			query1 = true;			
 		}
 
 		System.out.println("");
-		/*
-		for (int i = 0; i < args.length; i++) {
-			System.out.println("args[" + i + "] = " + args[i]);
-		}
-		*/		
 		
 		searchString = args[0];
 		scraper.setSearchString(searchString);		
 		if (query2) {
 			// throw exception if not number and if it is 0
 			pageNumber = args[1];
+			try {
+				int num = Integer.parseInt(pageNumber);
+				if (num == 0) {
+					System.out.println("Invalid page number 0!");
+					System.exit(1);
+				}
+			} catch (NumberFormatException nfe) {
+				System.out.println("Invalid page number!");
+				System.exit(1);
+			}
+			
 			scraper.setPageNumber(pageNumber);
 		}
 		
