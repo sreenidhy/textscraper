@@ -1,4 +1,0 @@
-textscraper
-===========
-
-text scraper
